@@ -105,11 +105,11 @@
         "remark-validate-links": "13.1.0",
         "ts-jest": "29.4.1",
         "ts-node": "10.9.2",
+        "typedoc": "0.28.10",
         "typedoc-plugin-missing-exports": "^4.0.0",
         "typedoc-plugin-rename-defaults": "^0.7.3",
-        "typedoc": "0.28.10",
-        "typescript-eslint": "^8.18.2",
-        "typescript": "5.9.2"
+        "typescript": "5.9.2",
+        "typescript-eslint": "^8.18.2"
     },
     "engines": {
         "node": ">=20.0.0",
@@ -129,5 +129,8 @@
         "packages/h5p-examples",
         "packages/h5p-rest-example-server",
         "packages/h5p-rest-example-client"
-    ]
+    ],
+    "dependencies": {
+        "tough-cookie": "4.1.4"
+    }
 }
