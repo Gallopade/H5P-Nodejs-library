@@ -13,7 +13,7 @@ typedoc
 # vscode
 .DS_Store
 microsoft.gpg
-.env 
+# .env 
 
 # Dependency directory
 node_modules
