@@ -9,9 +9,11 @@ RUN apt-get update && apt-get install -y \
     python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a writable npm cache directory
-RUN mkdir -p /home/node/.npm && chown -R node:node /home/node/.npm
+# Create a writable npm cache and node_modules folder
+RUN mkdir -p /home/node/.npm /usr/src/app/node_modules \
+    && chown -R node:node /home/node/.npm /usr/src/app
 ENV NPM_CONFIG_CACHE=/home/node/.npm
+
 
 # Copy everything (monorepo requires all packages for workspaces)
 COPY --chown=node:node . .
