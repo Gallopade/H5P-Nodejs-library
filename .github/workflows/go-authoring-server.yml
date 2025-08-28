@@ -1,0 +1,147 @@
+name: go-authoring-platform
+
+on:
+    push:
+        tags: ['v*.*.*', 'dev*.*.*', 'staging*.*.*']
+
+env:
+    IMAGE_NAME: go-authoring-platform
+    RESOURCE_GROUP: GO-Platform-RG
+    CLUSTER_NAME: GO-Platform-AKS
+
+jobs:
+    build:
+        name: Build container image
+        runs-on: ubuntu-latest
+
+        outputs:
+            branch: ${{ steps.check_step.outputs.branch }}
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Get tag
+              id: tag
+              uses: dawidd6/action-get-tag@v1
+            - name: Log into registry
+              uses: docker/login-action@v1
+              with:
+                  registry: ${{ secrets.ACR_ENDPOINT_GO_PLATFORM}}
+                  username: ${{ secrets.ACR_USERNAME_GO_PLATFORM }}
+                  password: ${{ secrets.ACR_PASSWORD_GO_PLATFORM }}
+
+            - name: Get current branch
+              id: check_step
+              run: |
+                  raw=$(git branch -r --contains ${{ github.ref }})
+                  branch=${raw##*/}
+                  echo "branch=$branch" >> $GITHUB_OUTPUT
+
+            - name: Build & Push
+              uses: docker/build-push-action@v2
+              with:
+                  push: true
+                  build-args: |
+                      version=${{ steps.tag.outputs.tag }}
+                  tags: ${{ secrets.ACR_ENDPOINT_GO_PLATFORM }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+
+    deploy-dev:
+        needs: build
+        # if: ${{ needs.build.outputs.branch == 'release-4.3' && startsWith(github.ref_name, 'dev')}}
+        if: ${{ startsWith(github.ref_name, 'dev')}}
+        permissions:
+            actions: read
+            contents: read
+            id-token: write
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Log in with Azure
+              uses: azure/login@v1
+              with:
+                  creds: '${{ secrets.AZURE_CREDENTIALS }}'
+
+            - name: Set AKS context
+              id: set-context
+              uses: azure/aks-set-context@v3
+              with:
+                  resource-group: '${{ env.RESOURCE_GROUP }}'
+                  cluster-name: '${{ env.CLUSTER_NAME }}'
+
+            - name: Setup kubectl
+              id: install-kubectl
+              uses: azure/setup-kubectl@v3
+
+            - name: Checkout deployment repo
+              uses: actions/checkout@v4
+              with:
+                  repository: 'Gallopade/deployment-configuration'
+                  token: ${{ secrets.ACCESS_TOKEN }}
+
+            - name: Update Kubernetes deployment
+              run: |
+                  IMAGE=${{ github.ref_name }}
+                  cd go-platform/frontend/deployments
+                  cat lms-frontend-dev.yaml | sed "s|<IMAGE>|${IMAGE}|g" >> output.yaml
+
+                  OUTPUT=$(kubectl -n gallopade-dev get pods -l app=lms-frontend --no-headers -o custom-columns=":metadata.name")
+
+                  if [ -n "$OUTPUT" ]; then
+                    kubectl -n gallopade-dev delete -f output.yaml
+                  fi
+
+                  kubectl -n gallopade-dev create -f output.yaml
+
+    deploy-staging:
+        needs: build
+        # if: ${{ needs.build.outputs.branch == 'release-4.3' && startsWith(github.ref_name, 'dev')}}
+        if: ${{ startsWith(github.ref_name, 'staging')}}
+        permissions:
+            actions: read
+            contents: read
+            id-token: write
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Log in with Azure
+              uses: azure/login@v1
+              with:
+                  creds: '${{ secrets.AZURE_CREDENTIALS }}'
+
+            - name: Set AKS context
+              id: set-context
+              uses: azure/aks-set-context@v3
+              with:
+                  resource-group: '${{ env.RESOURCE_GROUP }}'
+                  cluster-name: '${{ env.CLUSTER_NAME }}'
+
+            - name: Setup kubectl
+              id: install-kubectl
+              uses: azure/setup-kubectl@v3
+
+            - name: Checkout deployment repo
+              uses: actions/checkout@v4
+              with:
+                  repository: 'Gallopade/deployment-configuration'
+                  token: ${{ secrets.ACCESS_TOKEN }}
+
+            - name: Update Kubernetes deployment
+              run: |
+                  IMAGE=${{ github.ref_name }}
+                  cd go-platform/frontend/deployments
+                  cat lms-frontend-staging.yaml | sed "s|<IMAGE>|${IMAGE}|g" >> output.yaml
+
+                  OUTPUT=$(kubectl -n gallopade-staging get pods -l app=lms-frontend --no-headers -o custom-columns=":metadata.name")
+
+                  if [ -n "$OUTPUT" ]; then
+                    kubectl -n gallopade-staging delete -f output.yaml
+                  fi
+
+                  kubectl -n gallopade-staging create -f output.yaml

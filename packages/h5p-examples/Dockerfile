@@ -6,5 +6,5 @@ WORKDIR /home/node/h5p-nodejs-library
 COPY --chown=node:node . ./
 RUN npm install
 
-EXPOSE 8080
-CMD [ "node", "build/examples/express.js" ]
+EXPOSE 8765
+CMD [ "node", "build/express.js" ]
